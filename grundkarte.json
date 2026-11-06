@@ -1,0 +1,38 @@
+{
+  "comment": "Einstellungen des Grundkarten-Laufs. Zoom 11: 384 MB, Zoom 12: 776 MB (Messlauf 06.11.2026, osm.20261027).",
+  "max_zoom": 11,
+  "bbox": [5.5, 47.0, 15.5, 55.3],
+  "bbox_border": 3,
+  "max_size_bytes": 1900000000,
+  "file": "grundkarte-de.pmtiles",
+  "source": {
+    "base": "https://download.versatiles.org/",
+    "urllist": "https://download.versatiles.org/urllist_osm.tsv",
+    "feed": "https://download.versatiles.org/feed-osm.xml",
+    "pattern": "osm\\.(\\d{8})\\.versatiles"
+  },
+  "online": {
+    "tiles": "https://tiles.versatiles.org/tiles/osm/{z}/{x}/{y}",
+    "glyphs": "https://tiles.versatiles.org/assets/glyphs/{fontstack}/{range}.pbf",
+    "max_zoom": 14
+  },
+  "attribution": "© OpenStreetMap-Mitwirkende · VersaTiles",
+  "license": "ODbL 1.0 – © OpenStreetMap-Mitwirkende (https://www.openstreetmap.org/copyright)",
+  "required_layers": [
+    "aerialways", "boundaries", "boundary_labels", "bridges", "buildings", "dam_lines", "dam_polygons",
+    "ferries", "land", "ocean", "pier_lines", "pier_polygons", "place_labels", "sites", "street_polygons",
+    "streets", "water_lines", "water_polygons", "water_polygons_labels"
+  ],
+  "samples": [
+    {"name": "Augsburg", "lat": 48.3655, "lon": 10.8856},
+    {"name": "München", "lat": 48.1402, "lon": 11.5600},
+    {"name": "Berlin", "lat": 52.5251, "lon": 13.3694},
+    {"name": "Hamburg", "lat": 53.5530, "lon": 10.0069},
+    {"name": "Köln", "lat": 50.9430, "lon": 6.9589},
+    {"name": "Flensburg", "lat": 54.7740, "lon": 9.4365},
+    {"name": "Konstanz", "lat": 47.6589, "lon": 9.1774},
+    {"name": "Görlitz", "lat": 51.1466, "lon": 14.9781},
+    {"name": "Aachen", "lat": 50.7678, "lon": 6.0915},
+    {"name": "Passau", "lat": 48.5741, "lon": 13.4500}
+  ]
+}

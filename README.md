@@ -12,7 +12,9 @@ Der Workflow [`Grundkarte bauen`](.github/workflows/grundkarte.yml) läuft am 7.
 4. Nur bei Erfolg als Release `grundkarte-JJJJ-MM-TT` mit `manifest.json` veröffentlichen, als „latest“ markiert. Die letzten zwei Fassungen bleiben erhalten.
 5. Statusdatei `status/letzter-lauf.json` committen. Das zeigt, wie der letzte Lauf ausging, und hält den Zeitplan am Leben (GitHub schaltet ihn nach 60 Tagen ohne Aktivität ab).
 
-Bei Pull Requests läuft ein Messlauf ohne Veröffentlichung: Ausschnitt bis Zoom 12, daraus Zoom 11, beide geprüft und vermessen.
+Bei Pull Requests läuft ein Messlauf ohne Veröffentlichung: Ausschnitt, Prüfung, Größe je Zoomstufe. Andere Zoomstufen lassen sich von Hand vergleichen („Run workflow“ mit `max_zoom` und ohne „Veröffentlichen“).
+
+Erster Messlauf (06.11.2026, `osm.20261027.versatiles`, Rand 3 Kacheln): Zoom 0–11 sind 384 MB, Zoom 0–12 sind 776 MB. Eingestellt ist Zoom 11 – die Karte folgt dem Zug ohnehin höchstens bis Stufe 11, darüber kommen die Details online.
 
 Einstellungen (Gebiet, Rand, Zoomstufe, Größengrenze, Online-Adressen, Stichproben) stehen in [`grundkarte.json`](grundkarte.json).
 
@@ -27,13 +29,13 @@ Die App liest `https://github.com/Sky7677/reiseanzeige-grundkarte/releases/lates
   "version": "2026-10-27",
   "file": "grundkarte-de.pmtiles",
   "file_format": "pmtiles",
-  "size": 512345678,
+  "size": 383540268,
   "sha256": "…",
   "source": "VersaTiles osm.20261027.versatiles",
   "schema": "shortbread-v1",
   "min_zoom": 0,
-  "max_zoom": 12,
-  "bounds": [5.43, 46.95, 15.6, 55.33],
+  "max_zoom": 11,
+  "bounds": [5.5, 47.0, 15.5, 55.3],
   "tile_compression": "gzip",
   "online": {
     "tiles": "https://tiles.versatiles.org/tiles/osm/{z}/{x}/{y}",
@@ -45,7 +47,7 @@ Die App liest `https://github.com/Sky7677/reiseanzeige-grundkarte/releases/lates
 }
 ```
 
-Die Online-Adressen stehen hier statt in der App: Fällt ein Dienst weg, genügt eine neue Fassung des Manifests, kein App-Update.
+`bounds` ist das Gebiet, das bis `max_zoom` vollständig enthalten ist. Die Datei liegt im Release `grundkarte-<version>`. Die Online-Adressen stehen hier statt in der App: Fällt ein Dienst weg, genügt eine neue Fassung des Manifests, kein App-Update.
 
 ## Entwicklung
 

@@ -3,7 +3,8 @@ name: Grundkarte bauen
 # Monatlich: Gibt es eine neue VersaTiles-Fassung, wird Deutschland neu
 # ausgeschnitten, geprüft und als Release veröffentlicht. Von Hand über
 # „Run workflow“ jederzeit. Bei Pull Requests ein Messlauf ohne Veröffentlichung:
-# Ausschnitt bis Zoom 12 und 11, Prüfung, Größen in der Zusammenfassung.
+# Ausschnitt, Prüfung, Größe je Zoomstufe in der Zusammenfassung. Andere
+# Zoomstufen vergleichen: von Hand mit „max_zoom“ und ohne „Veröffentlichen“.
 on:
   schedule:
     - cron: "41 3 7 * *"
@@ -106,19 +107,10 @@ jobs:
           ZOOM: ${{ steps.need.outputs.zoom }}
         run: python -m basemap.check "$FILE" --max-zoom "$ZOOM" --report report.md
 
-      - name: Messlauf mit Zoom 11
-        if: github.event_name == 'pull_request' && steps.need.outputs.zoom != '11'
-        run: |
-          versatiles convert --max-zoom 11 "$FILE" grundkarte-z11.pmtiles
-          python -m basemap.check grundkarte-z11.pmtiles --max-zoom 11 --report report-z11.md
-
       - name: Bericht in die Zusammenfassung
         if: always()
         run: |
-          for f in report.md report-z11.md; do
-            [ -f "$f" ] || continue
-            { echo; echo "## Prüfbericht ${f%.md}"; echo; cat "$f"; } >> "$GITHUB_STEP_SUMMARY"
-          done
+          [ -f report.md ] && { echo; echo "## Prüfbericht"; echo; cat report.md; } >> "$GITHUB_STEP_SUMMARY" || true
 
       - name: Manifest
         if: steps.need.outputs.build == 'true'
@@ -133,7 +125,7 @@ jobs:
         with:
           name: bericht
           path: |
-            report*.md
+            report.md
             dist/manifest.json
           retention-days: 7
           if-no-files-found: ignore

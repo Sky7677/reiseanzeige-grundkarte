@@ -1,6 +1,6 @@
 {
-  "comment": "Einstellungen des Grundkarten-Laufs. Zoomstufe nach dem ersten Messlauf festlegen (11 oder 12).",
-  "max_zoom": 12,
+  "comment": "Einstellungen des Grundkarten-Laufs. Zoom 11: 384 MB, Zoom 12: 776 MB (Messlauf 06.11.2026, osm.20261027).",
+  "max_zoom": 11,
   "bbox": [5.5, 47.0, 15.5, 55.3],
   "bbox_border": 3,
   "max_size_bytes": 1900000000,

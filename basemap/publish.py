@@ -50,7 +50,9 @@ def build_manifest(path: str, cfg: dict, source_url: str, source_date: str, crea
         "schema": "shortbread-v1",
         "min_zoom": h.min_zoom,
         "max_zoom": h.max_zoom,
-        "bounds": [round(h.min_lon, 6), round(h.min_lat, 6), round(h.max_lon, 6), round(h.max_lat, 6)],
+        # Gebiet, das bis max_zoom vollständig enthalten ist. Der Kopf der Datei nennt ein
+        # viel größeres, weil die groben Stufen ganze Kacheln (bis zur Welt) enthalten.
+        "bounds": list(cfg["bbox"]),
         "tile_compression": COMPRESSION.get(h.tile_compression, "unknown"),
         "tiles": h.addressed_tiles,
         "vector_layers": sorted(l["id"] for l in meta.get("vector_layers", []) if isinstance(l, dict) and "id" in l),

@@ -1,0 +1,195 @@
+name: Grundkarte bauen
+
+# Monatlich: Gibt es eine neue VersaTiles-Fassung, wird Deutschland neu
+# ausgeschnitten, geprüft und als Release veröffentlicht. Von Hand über
+# „Run workflow“ jederzeit. Bei Pull Requests ein Messlauf ohne Veröffentlichung:
+# Ausschnitt bis Zoom 12 und 11, Prüfung, Größen in der Zusammenfassung.
+on:
+  schedule:
+    - cron: "41 3 7 * *"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Veröffentlichen (aus: nur Probelauf, Bericht in der Zusammenfassung)"
+        type: boolean
+        default: true
+      force:
+        description: "Auch ohne neue VersaTiles-Fassung neu bauen (ersetzt das Release dieser Fassung)"
+        type: boolean
+        default: false
+      max_zoom:
+        description: "Zoomstufe (leer: Einstellung aus grundkarte.json)"
+        type: string
+        default: ""
+  pull_request:
+    paths:
+      - "basemap/**"
+      - "grundkarte.json"
+      - ".github/workflows/grundkarte.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grundkarte-${{ github.event_name == 'pull_request' && github.event.number || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  VERSATILES_VERSION: v5.7.0
+  FILE: grundkarte-de.pmtiles
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Werkzeuge
+        run: |
+          pip install -e ".[test]"
+          curl -fsSL --retry 3 -o versatiles.tar.gz \
+            "https://github.com/versatiles-org/versatiles-rs/releases/download/$VERSATILES_VERSION/versatiles-linux-gnu-x86_64.tar.gz"
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf versatiles.tar.gz -C "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/versatiles" --version
+
+      - name: Tests
+        run: pytest -q
+
+      - name: Neueste VersaTiles-Fassung
+        id: src
+        run: python -m basemap.source --github-output "$GITHUB_OUTPUT"
+
+      - name: Neu bauen?
+        id: need
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.src.outputs.tag }}
+          FORCE: ${{ inputs.force }}
+          ZOOM_INPUT: ${{ inputs.max_zoom }}
+        run: |
+          ZOOM="${ZOOM_INPUT:-$(jq -r .max_zoom grundkarte.json)}"
+          echo "zoom=$ZOOM" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "Messlauf für den Pull Request (keine Veröffentlichung)." >> "$GITHUB_STEP_SUMMARY"
+          elif gh release view "$TAG" >/dev/null 2>&1 && [ "$FORCE" != "true" ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "Keine neue Fassung: $TAG ist bereits veröffentlicht." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deutschland ausschneiden
+        if: steps.need.outputs.build == 'true'
+        env:
+          SRC_URL: ${{ steps.src.outputs.url }}
+          ZOOM: ${{ steps.need.outputs.zoom }}
+        run: |
+          BBOX=$(python -c 'from basemap import config; print(config.bbox_arg(config.load()))')
+          BORDER=$(jq -r .bbox_border grundkarte.json)
+          echo "Quelle $SRC_URL, bbox $BBOX, Rand $BORDER Kacheln, Zoom 0 bis $ZOOM"
+          START=$(date +%s)
+          versatiles convert --bbox "$BBOX" --bbox-border "$BORDER" --min-zoom 0 --max-zoom "$ZOOM" \
+            --compress gzip "$SRC_URL" "$FILE"
+          echo "Ausschnitt in $(( $(date +%s) - START )) s"
+          ls -la "$FILE"
+
+      - name: Prüfen
+        if: steps.need.outputs.build == 'true'
+        env:
+          ZOOM: ${{ steps.need.outputs.zoom }}
+        run: python -m basemap.check "$FILE" --max-zoom "$ZOOM" --report report.md
+
+      - name: Messlauf mit Zoom 11
+        if: github.event_name == 'pull_request' && steps.need.outputs.zoom != '11'
+        run: |
+          versatiles convert --max-zoom 11 "$FILE" grundkarte-z11.pmtiles
+          python -m basemap.check grundkarte-z11.pmtiles --max-zoom 11 --report report-z11.md
+
+      - name: Bericht in die Zusammenfassung
+        if: always()
+        run: |
+          for f in report.md report-z11.md; do
+            [ -f "$f" ] || continue
+            { echo; echo "## Prüfbericht ${f%.md}"; echo; cat "$f"; } >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Manifest
+        if: steps.need.outputs.build == 'true'
+        env:
+          SRC_URL: ${{ steps.src.outputs.url }}
+          SRC_DATE: ${{ steps.src.outputs.date }}
+        run: python -m basemap.publish "$FILE" --source-url "$SRC_URL" --source-date "$SRC_DATE" --out dist
+
+      - name: Bericht und Manifest aufbewahren (7 Tage)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bericht
+          path: |
+            report*.md
+            dist/manifest.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Veröffentlichen
+        if: steps.need.outputs.build == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish))
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.src.outputs.tag }}
+          SRC_NAME: ${{ steps.src.outputs.name }}
+          SRC_DATE: ${{ steps.src.outputs.date }}
+        run: |
+          {
+            echo "Deutschland-Grundkarte aus VersaTiles \`$SRC_NAME\` (OpenStreetMap, Shortbread-Schema) für die Android-Reiseanzeige."
+            echo
+            echo "**Lizenz der Daten:** © OpenStreetMap-Mitwirkende, verfügbar unter der [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Kacheln aufbereitet von [VersaTiles](https://versatiles.org). Ausgeschnitten mit dem Code dieses Repositorys."
+            echo
+            echo "## Prüfung"
+            echo
+            cat report.md
+          } > notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --notes-file notes.md --latest
+          else
+            gh release create "$TAG" dist/* --title "Grundkarte $SRC_DATE" --notes-file notes.md --latest
+          fi
+          # Nur die letzten zwei Fassungen behalten
+          gh release list --limit 100 --json tagName,createdAt \
+            --jq 'map(select(.tagName | startswith("grundkarte-"))) | sort_by(.createdAt) | reverse | .[2:] | .[].tagName' |
+          while read -r old; do gh release delete "$old" --cleanup-tag --yes; done
+          echo "PUBLISHED=1" >> "$GITHUB_ENV"
+
+      # GitHub schaltet Zeitpläne nach 60 Tagen ohne Aktivität im Repository ab.
+      # Ein Commit je Lauf hält ihn am Leben und zeigt, wie der letzte Lauf ausging.
+      - name: Statusdatei
+        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          RESULT: ${{ job.status }}
+          BUILD: ${{ steps.need.outputs.build }}
+          TAG: ${{ steps.src.outputs.tag }}
+          SRC_NAME: ${{ steps.src.outputs.name }}
+        run: |
+          if [ "$RESULT" != "success" ]; then ERGEBNIS="fehlgeschlagen"
+          elif [ "${PUBLISHED:-0}" = "1" ]; then ERGEBNIS="neu veröffentlicht"
+          elif [ "$BUILD" = "true" ]; then ERGEBNIS="Probelauf, nicht veröffentlicht"
+          else ERGEBNIS="keine neue Fassung"; fi
+          mkdir -p status
+          jq -n --arg lauf "$(date -u +%FT%TZ)" --arg ergebnis "$ERGEBNIS" --arg quelle "$SRC_NAME" \
+                --arg tag "$TAG" --arg anlass "$GITHUB_EVENT_NAME" \
+                --arg log "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+                '{lauf: $lauf, ergebnis: $ergebnis, quelle: $quelle, tag: $tag, anlass: $anlass, protokoll: $log}' \
+                > status/letzter-lauf.json
+          cat status/letzter-lauf.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add status/letzter-lauf.json
+          git commit -m "Status: $ERGEBNIS ($TAG)" || exit 0
+          git push || echo "::warning::Statusdatei konnte nicht gepusht werden (Schutzregel für main?)"

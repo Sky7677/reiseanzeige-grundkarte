@@ -1,0 +1,16 @@
+[project]
+name = "reiseanzeige-grundkarte"
+version = "0.1.0"
+description = "Deutschland-Grundkarte (VersaTiles, OpenStreetMap) für die Android-Reiseanzeige"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=8", "pmtiles>=3.4"]
+
+[tool.setuptools]
+packages = ["basemap"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
